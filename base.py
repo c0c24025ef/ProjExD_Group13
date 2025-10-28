@@ -1,4 +1,5 @@
 import pygame
+import os
 
 # 1. 定数と初期設定
 # pygame.init()
