@@ -24,37 +24,79 @@ WHITE = (255, 255, 255)
 GREEN = (50, 200, 50)   # プレイヤーの色
 BROWN = (139, 69, 19)   # ブロックの色
 
-def extend(map_data, stage_width, max_ground_height = 5):
+#probsは生み出す確率リスト
+def extend(map_data, add_stage_width, probs):
     """
     ステージを拡張する関数
     引数: 追加するブロックの数
     戻り値: 拡張したマップのリスト
     """  
-    ini_stage_width = len(map_data[0])
-    for i in range(-1, -1 * len(map_data), -1):
-        if abs(i) <= max_ground_height:
-            probs = [0.2, 0.5, 0.8, 1.0, 1.0]
-            if i >= -2:
-                for j in range(stage_width):
-                    map_data[i].append(1)
-                else:
-                    continue
-
-            for j in range(stage_width):
-                p = probs[i] if abs(i) < len(probs) else 0
+    for i in range(len(map_data)):
+        layer = -1 * (i + 1)
+        if i < 2:
+            for j in range(add_stage_width):
+                map_data[layer].append(1)
+        elif i < len(probs):
+            for j in range(add_stage_width):
+                pos = len(map_data[layer]) - 1
                 generate_prob = random.randint(0,100) / 100
-                pos = len(map_data[0])
-                if generate_prob <= probs[i] and map_data[i + 1][pos - 1] == 1:
-                    map_data[i].append(1)
+                if generate_prob < probs[layer] and map_data[layer + 1][pos] == 1 and map_data[layer + 1][pos + 1] == 1:
+                    map_data[layer].append(1)
                 else:
-                    map_data[i].append(0)
-            else:
-                map_data[i].append(2)
+                    map_data[layer].append(0)
         else:
-            for j in range(stage_width):
-                map_data[i].append(0)
-                                
+            for j in range(add_stage_width):
+                map_data[layer].append(0)
     return map_data
+
+def ground_surface(map_data):
+    for i in range(len(map_data) - 2, 0, -1):
+        for j in range(len(map_data[0])):  
+            if map_data[i + 1][j] == 1 and map_data[i][j] == 0:
+                map_data[i][j] = 2
+    return map_data
+            
+def make_float_land(map_data: "list", add_range: "tuple", num):
+    for i in range(num):
+        width = random.randrange(2,4)
+        X = random.randrange(10, len(map_data[0]))
+        Y = random.randrange(add_range[0], add_range[1])
+        if map_data[len(map_data) - Y][X] == 0 and map_data[len(map_data) - Y + 1][X] == 0 and map_data[len(map_data) - Y + 2][X] == 0:
+            for j in width:
+                map_data[len(map_data) - Y][X + j] = 3
+    return map_data
+
+# def extend(map_data, stage_width, max_ground_height = 5):
+#     """
+#     ステージを拡張する関数
+#     引数: 追加するブロックの数
+#     戻り値: 拡張したマップのリスト
+#     """  
+#     ini_stage_width = len(map_data[0])
+#     for i in range(-1, -1 * len(map_data), -1):
+#         if i >= -1 * max_ground_height:
+#             probs = [0.2, 0.5, 0.8, 1.0, 1.0]
+#             if i >= -2:
+#                 for j in range(stage_width):
+#                     map_data[i].append(1)
+#                 else:
+#                     continue
+
+#             for j in range(stage_width):
+#                 p = probs[i] if abs(i) < len(probs) else 0
+#                 generate_prob = random.randint(0,100) / 100
+#                 pos = len(map_data[0])
+#                 if generate_prob <= p and map_data[i + 1][pos - 1] == 1:
+#                     map_data[i].append(1)
+#                 else:
+#                     map_data[i].append(0)
+#             else:
+#                 map_data[i].append(2)
+#         else:
+#             for j in range(stage_width):
+#                 map_data[i].append(0)
+                                
+#     return map_data
 
 def gravity(instance, block_rects):
     instance.vy += GRAVITY # 重力を速度に加算
@@ -101,7 +143,7 @@ class Player(pg.sprite.Sprite):
         self.move_left = False
         self.move_right = False
     
-    def update(self, stage_width, block_rects, camera_x):
+    def update(self, stage_width, block_rect, camera_x):
         self.movex = 0
         if self.move_left:
             self.movex -= PLAYER_SPEED
@@ -111,21 +153,22 @@ class Player(pg.sprite.Sprite):
         self.rect.x += self.movex # まずX方向に動かす
         self.screen_x = self.rect.x - camera_x # 画面内のプレイヤーの位置を確認
         if self.screen_x < LEFT_BOUND: # プレイヤーが左端ならカメラの位置を左にずらす
-            camera_x = self.rect.x - LEFT_BOUND 
+            camera_x = self.rect.x - LEFT_BOUND
         elif self.screen_x > RIGHT_BOUND: #プレイヤーが右端ならカメラの位置を右にずらす
             camera_x = self.rect.x - RIGHT_BOUND
         max_camera_x = stage_width * TILE_SIZE_X - SCREEN_WIDTH #カメラの動く範囲を総タイル数と画面のサイズから計算
+        # print(max_camera_x)
         camera_x = max(0, min(camera_x, max_camera_x))
 
         # X方向の衝突チェック
-        for block in block_rects:
+        for block in block_rect:
             if self.rect.colliderect(block):
                 if self.movex > 0: # 右に移動中に衝突
                     self.rect.right = block.left # 右端をブロックの左端に合わせる
                 elif self.movex < 0: # 左に移動中に衝突
                     self.rect.left = block.right # 左端をブロックの右端に合わせる
         
-        gravity(self,block_rects)
+        gravity(self, block_rects)
         
         return camera_x
 
@@ -165,11 +208,11 @@ def main():
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],
+        [0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 0, 0, 0, 0],
         [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
@@ -179,19 +222,27 @@ def main():
         [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     ]
 
+    probs = [0.5, 0.7, 0.9, 1.0, 1.0]
+
     enemy_pos = (100, 100)
 
     # 3. ステージの「当たり判定用の四角形(Rect)」リストを作成
     # (ゲーム開始時に一度だけ計算する)
-    map_data = extend(map_data, ADD_STAGE_BLOCK, 5)
+    map_data = extend(map_data, ADD_STAGE_BLOCK, probs)
+    map_data = ground_surface(map_data)
+    map_data = make_float_land(map_data, (5,7), 5)
     block_rects = []
+    surface_rects = []
+    floatland_rects = []
     for y, row in enumerate(map_data):
         for x, tile_type in enumerate(row):
             if tile_type == 1:
                 # (x座標, y座標, 幅, 高さ) のRectを作成
                 block_rects.append(pg.Rect(x * TILE_SIZE_X, y * TILE_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y))
-            # elif tile_type ==2:
-            #     edge_rects.append(pg.Rect(x * TILE_SIZE_X, y * TILE_SIZE_Y, TILE_SIZE_X, TILE_SIZE_Y))
+            elif tile_type == 2:
+                surface_rects.append(pg.Rect(x * TILE_SIZE_X, y * TILE_SIZE_Y + (TILE_SIZE_Y / 2), TILE_SIZE_X, TILE_SIZE_Y / 2))
+            elif tile_type == 3:
+                floatland_rects.append(pg.Rect(x * TILE_SIZE_X, y * TILE_SIZE_Y + (TILE_SIZE_Y / 2), TILE_SIZE_X, TILE_SIZE_Y / 2))
     # 4. プレイヤー設定
     player = Player() #プレイヤー
     enemys = pg.sprite.Group()
@@ -228,48 +279,6 @@ def main():
                     player.move_right = False
 
         # 7. プレイヤーのロジック更新 (移動と当たり判定)
-        
-        # --- 左右の移動と当たり判定 ---
-        # player.movex = 0
-        # if player.move_left:
-        #     player.movex -= PLAYER_SPEED
-        # if player.move_right:
-        #     player.movex += PLAYER_SPEED
-        
-        # player.rect.x += player.movex # まずX方向に動かす
-        # player.screen_x = player.rect.x - camera_x # 画面内のプレイヤーの位置を確認
-        # if player.screen_x < LEFT_BOUND: # プレイヤーが左端ならカメラの位置を左にずらす
-        #     camera_x = player.rect.x - LEFT_BOUND 
-        # elif player.screen_x > RIGHT_BOUND: #プレイヤーが右端ならカメラの位置を右にずらす
-        #     camera_x = player.rect.x - RIGHT_BOUND
-        # max_camera_x = len(map_data[0]) * TILE_SIZE_X - SCREEN_WIDTH #カメラの動く範囲を総タイル数と画面のサイズから計算
-        # camera_x = max(0, min(camera_x, max_camera_x))
-        
-        # # X方向の衝突チェック
-        # for block in block_rects:
-        #     if player.rect.colliderect(block):
-        #         if player.movex > 0: # 右に移動中に衝突
-        #             player.rect.right = block.left # 右端をブロックの左端に合わせる
-        #         elif player.movex < 0: # 左に移動中に衝突
-        #             player.rect.left = block.right # 左端をブロックの右端に合わせる
-
-        # --- 垂直方向（重力・ジャンプ）の移動と当たり判定 ---
-        # player.vy += GRAVITY # 重力を速度に加算
-        # player.rect.y += player.vy # Y方向に動かす
-        
-        # # Y方向の衝突チェック
-        # player.is_on_ground = False # 毎フレーム「接地していない」と仮定
-        # for block in block_rects:
-        #     if player.rect.colliderect(block):
-        #         if player.vy > 0: # 落下中に衝突
-        #             player.rect.bottom = block.top # 足元をブロックの上端に合わせる
-        #             player.vy = 0 # 落下速度をリセット
-        #             is_on_ground = True   # 接地フラグを立てる
-        #         elif player.vy < 0: # ジャンプ中に衝突
-        #             player.rect.top = block.bottom # 頭をブロックの下端に合わせる
-        #             player.vy = 0 # 上昇速度をリセット（頭を打った）
-        #     # if player_rect.colliderect(edge):
-        #         # player_rect.left = edge.right
 
         # 8. 描画処理
         screen.fill(BLACK) # 画面を黒で塗りつぶし
@@ -280,11 +289,10 @@ def main():
         
 
         # プレイヤーを描画
-        camera_x = player.update(len(map_data[0]), block_rects, camera_x)
-        print(camera_x)
+        camera_x = player.update(len(map_data[0]), [surface_rects, floatland_rects], camera_x)
+        # print(camera_x)
         screen.blit(player.img, (player.rect.x - camera_x, player.rect.y))
-        score.update()
-        screen.blit(score.txt, (SCREEN_WIDTH / 10, SCREEN_HEIGHT - SCREEN_HEIGHT / 10))
+        
         # ステージ（ブロック）を描画
         for block in block_rects:
             draw_rect = pg.Rect(
@@ -294,8 +302,25 @@ def main():
                 block.height
             )
             pg.draw.rect(screen, BROWN, draw_rect)
+        for block in surface_rects:
+            draw_rect = pg.Rect(
+                block.x - camera_x,
+                block.y,
+                block.width,
+                block.height
+            )
+            pg.draw.rect(screen, (255, 0, 255), draw_rect)
+        for block in floatland_rects:
+            draw_rect = pg.Rect(                
+                block.x - camera_x,
+                block.y,
+                block.width,
+                block.height)
+            pg.draw.rect(screen, (255, 255, 255), draw_rect)
         # 画面を更新
         # pg.display.flip()
+        score.update()
+        screen.blit(score.txt, (SCREEN_WIDTH / 10, SCREEN_HEIGHT - SCREEN_HEIGHT / 10))
         pg.display.update()
         
         # 9. FPS (フレームレート) の制御
