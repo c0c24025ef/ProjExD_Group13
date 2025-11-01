@@ -12,26 +12,105 @@ TILE_SIZE_X, TILE_SIZE_Y = 100, 40 # タイルのサイズ
 ADD_STAGE_BLOCK = 100 # ステージの拡張幅
 GRAVITY = 0.8         # 重力
 JUMP_STRENGTH = -15   # ジャンプ力 (Y軸は上がマイナス)
+HOVER_AIR_TIME = 60
 PLAYER_SPEED = 100      # 左右の移動速度
-PLAYER_HP = 3
-NO_DAMAGE_TIME = 100
+PLAYER_HP = 5
+NO_DAMAGE_TIME = 120
 PLAYER_POWER = 10
 ENEMY_NUM = 1         # 敵の数
 ENEMY_SPEED = 1
 #ーーーーーーーーーーーーーーーーーーーーーーーーーー
 #---まだ
-def start_page():
-    pass
+def start_page(screen, clock):
+    bg_img = pg.image.load("fig/night_plain_bg.png")
+    title = Text("GO KOUKATON (TUT)", 80, (100, 300))
+    start_button = Text("Start", 80, (100, 100))
+    end_button = Text("Quit", 80, (500, 100))
+
+    mouse_x, mouse_y = -1000, -1000
+    while True:
+        for event in pg.event.get():
+            #ゲーム終了
+            if event.type == pg.QUIT:
+                return -1
+        
+            if event.type == pg.MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = event.pos
+ 
+        screen.blit(bg_img, (0, 0))
+        screen.blit(title.txt, (title.x, title.y))
+        screen.blit(start_button.txt, (start_button.x, start_button.y))
+        screen.blit(end_button.txt, (end_button.x, end_button.y))
+        
+        if start_button.x < mouse_x < start_button.x + start_button.width and end_button.y < mouse_y < end_button.y + end_button.height:
+            return 0
+        if end_button.x < mouse_x < end_button.x + end_button.width and end_button.y < mouse_y < end_button.y + end_button.height:
+            return -1
+        
+        pg.display.update()
+        clock.tick(60)
 #------
 
 #---まだ
-def gameover():
-    pass
+def gameover(screen, clock):
+    bg_img = pg.image.load("fig/night_plain_bg.png")
+    txt = Text("Game Over", 80, (100, 300))
+    retry = Text("Retry", 80, (100, 100))
+    quit = Text("Quit", 80, (500, 100))
+    mouse_x, mouse_y = -1000, -1000
+
+    while True:
+        for event in pg.event.get():
+            #ゲーム終了
+            if event.type == pg.QUIT:
+                return -1
+        
+            if event.type == pg.MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = event.pos
+ 
+        screen.blit(bg_img, (0, 0))
+        screen.blit(txt.txt, (txt.x, txt.y))
+        screen.blit(retry.txt, (retry.x, retry.y))
+        screen.blit(quit.txt, (quit.x, quit.y))
+        
+        if retry.x < mouse_x < retry.x + retry.width and retry.y < mouse_y < retry.y + retry.height:
+            return 0
+        if quit.x < mouse_x < quit.x + quit.width and quit.y < mouse_y < quit.y + quit.height:
+            return -1
+        
+        pg.display.update()
+        clock.tick(60)
 #------
 
 #---まだ
-def game_clear():
-    pass
+def game_clear(screen, clock, Score):
+    bg_img = pg.image.load("fig/night_plain_bg.png")
+    txt = Text("Game Clear", 80, (100, 300))
+    retry = Text("Retry", 80, (100, 100))
+    quit = Text("Quit", 80, (500, 100))
+    mouse_x, mouse_y = -1000, -1000
+
+    while True:
+        for event in pg.event.get():
+            #ゲーム終了
+            if event.type == pg.QUIT:
+                return -1
+        
+            if event.type == pg.MOUSEBUTTONDOWN:
+                mouse_x, mouse_y = event.pos
+ 
+        screen.blit(bg_img, (0, 0))
+        screen.blit(txt.txt, (txt.x, txt.y))
+        screen.blit(retry.txt, (retry.x, retry.y))
+        screen.blit(quit.txt, (quit.x, quit.y))
+        
+        if retry.x < mouse_x < retry.x + retry.width and retry.y < mouse_y < retry.y + retry.height:
+            return 0
+        if quit.x < mouse_x < quit.x + quit.width and quit.y < mouse_y < quit.y + quit.height:
+            return -1
+        
+        pg.display.update()
+        clock.tick(60)
 #------
 
 def extend(map_data: "list[list[int]]", add_stage_width: "int", probs: "list[int]") -> list[list[int]]:
@@ -133,6 +212,18 @@ def gravity(instance: "object", blocks: "list[tuple[object, int]]") -> None:
                     instance.vy = 0 # 上昇速度をリセット（頭を打った）
 #------
 
+def no_damage(instance, flag = 0):
+    if instance.no_damage_time == 0 and flag == 1:
+        instance.no_damage_time = NO_DAMAGE_TIME
+    elif instance.no_damage_time > 0:
+        if instance.no_damage_time % 10 == 0 and instance.no_damage_time % 20 != 0:
+            instance.patarn = (instance.patarn[0], 0, "normal")
+        elif instance.no_damage_time % 20 == 0:
+            instance.patarn = (instance.patarn[0], 0, "no_damage")            
+        instance.no_damage_time -= 1
+    else:
+        return
+
 class Assets:
     def __init__(self):
         self.bg = pg.image.load("fig/night_plain_bg.png")
@@ -159,6 +250,15 @@ class Assets:
         ]
         self.probs = [0.5, 0.7, 0.9, 1.0, 1.0]
 
+class Text:
+    def __init__(self, string, str_size, pos):
+        self.txt = pg.font.Font(None, str_size)
+        self.txt = self.txt.render(string, True, (255, 255, 255))
+        self.x = pos[0]
+        self.y = pos[1]
+        self.width = self.txt.get_width()
+        self.height = self.txt.get_height()
+
 #---修正
 class Player(pg.sprite.Sprite):
     """
@@ -168,20 +268,24 @@ class Player(pg.sprite.Sprite):
         super().__init__()
         
         self.original = pg.image.load("fig/yoko1.png")
-        self.imgs = self.original
-        self.flip = pg.transform.flip(self.img, True, False)
-        
-        self.for_lap = [self.img, pg.transform.laplacian(self.original)]
-        self.rect = self.img.get_rect()
+        # self.img = self.original
+        self.flip = pg.transform.flip(self.original, True, False)
+        self.punch = pg.image.load("fig/punch.png")
+        self.imgs = [self.original, self.flip ]
+        self.rect = self.imgs[0].get_rect()
         self.vx = 0
         self.vy = 0
-        self.dire = (1, 0)
-        self.dire_to_img = {(1, 0) : self.img, (-1, 0) : self.flip}
+        self.patarn = (1, 0, "normal")
+        self.patarn_to_img = {(1, 0, "normal") : self.imgs[0], (-1, 0, "normal") : self.imgs[1],
+                              (1, 0, "no_damage") : pg.transform.laplacian(self.imgs[0]), (-1, 0, "no_damage") : pg.transform.laplacian(self.imgs[1]),
+                              (1, 0, "punch") : self.punch, (-1, 0, "punch"): pg.transform.flip(self.punch, True, False)
+                              }
 
         self.hover_num = 0
         self.hp = PLAYER_HP
         self.no_damage_time = NO_DAMAGE_TIME
         self.power = PLAYER_POWER
+        self.attacking = False
 
         self.is_on_ground = False
         self.move_left, self.move_right = False, False
@@ -196,16 +300,22 @@ class Player(pg.sprite.Sprite):
         """  
         if self.move_left:
             self.vx = -PLAYER_SPEED
-            self.dire = (-1, 0)
+            if self.attacking == True:
+                self.patarn = (-1, 0, "punch")           
+            else:
+                self.patarn = (-1, 0, "normal")
         if self.move_right:
             self.vx = PLAYER_SPEED
-            self.dire = (1, 0)
+            if self.attacking == True:
+                self.patarn = (1, 0, "punch")
+            else:
+                self.patarn = (1, 0, "normal")
 
         self.rect.x += self.vx
 
         walled(self, all_blocks, camera_x)
         gravity(self, floar_blocks)
-
+        no_damage(self, 0)
 
         if self.rect.x - camera_x < LEFT_BOUND: # プレイヤーが左端
             camera_x = self.rect.x - LEFT_BOUND # オブジェクトのずらし度を決定する。
@@ -227,16 +337,40 @@ class Player(pg.sprite.Sprite):
         self.hover_num += 1
         return
     
-    def no_damage(self):
-        if self.no_damage_time == 0:
-            self.no_damage_time = NO_DAMAGE_TIME
-        else:
-            if self.no_damage_time % 10 == 0 and self.no_damage_time % 2 != 0:
-                self.dire_to_img[self.dire] = self.original
-            elif self.no_damage_time % 20 == 0:
-                self.dire_to_img[self.dire] = pg.transform.laplacian(self.img)
-            self.no_damage_time -= 1
+    # def no_damage(self,instance, flag = 0):
+    #     if self.no_damage_time == 0 and flag == 1:
+    #         self.no_damage_time = NO_DAMAGE_TIME
+    #     elif self.no_damage_time > 0:
+    #         if self.no_damage_time % 10 == 0 and self.no_damage_time % 20 != 0:
+    #             self.dire = (self.dire[0], 0, 0)
+    #         elif self.no_damage_time % 20 == 0:
+    #             self.dire = (self.dire[0], 0, 1)            
+    #         self.no_damage_time -= 1
+    #     else:
+    #         return
+        
+    def panch(self):
+        attack = PlayerLeadAttack((50, 20), 600, "punch")
+        self.patarn = (self.patarn[0], 0, "punch")
+        self.attacking = True
+        return attack
+
 #---
+class HoverAir(pg.sprite.Sprite):
+    def __init__(self, instance, flag, flag_air_dire):
+        super().__init__()
+        self.image = pg.image.load("fig/jumped_air.png")
+        self.image = [self.image, pg.transform.flip(self.image, True, False)][flag_air_dire]
+        self.time = HOVER_AIR_TIME
+        self.rect = self.image.get_rect()
+        self.rect.x = instance.rect.centerx + instance.imgs[0].get_width() * flag
+        self.rect.y = instance.rect.centery
+
+    def update(self):
+        self.time -= 1
+        self.rect.y += 1
+        if self.time == 0:
+            self.kill()
 
 #---修正
 class Enemy(pg.sprite.Sprite):
@@ -246,16 +380,20 @@ class Enemy(pg.sprite.Sprite):
     def __init__(self):
         super().__init__()
 
-        self.image = pg.image.load("fig/troia1.png")
+        self.original = pg.image.load("fig/troia1.png")
+        self.image = self.original
         self.flip = pg.transform.flip(self.image, True, False)
         self.rect = self.image.get_rect()
         self.rect.center = (1000, 0) #テスト用で定数
         self.vx = ENEMY_SPEED
         self.vy = 0
-        self.dire = (1, 0)
-        self.dire_to_img = {(1, 0): self.image, (-1, 0): self.flip}
+        self.patarn = (1, 0, "normal")
+        self.patarn_to_img = {(1, 0, "normal"): self.image, (-1, 0, "normal"): self.flip,
+                              (1, 0, "no_damage"): pg.transform.laplacian(self.image), (1, 0, "no_damage"): pg.transform.laplacian(self.flip),
+                              }
 
         self.hp = 5
+        self.no_damage_time = NO_DAMAGE_TIME
         self.power = 1
         
         self.is_on_ground = False
@@ -278,10 +416,86 @@ class Enemy(pg.sprite.Sprite):
                     self.is_move_left = True
                     self.is_move_right = False
                 self.vx *= -1
-                print(f"敵の速度{self.vx}")
+                # print(f"敵の速度{self.vx}")
                 
         gravity(self, floar_blocks)
         # self.rect.centery -= (TILE_SIZE_Y/2)
+#------
+
+class PlayerLeadAttack(pg.sprite.Sprite):
+    def __init__(self, size, time, type, ini_angle = 45):
+        super().__init__()
+        self.original = pg.Surface(size)
+        self.original.fill((255, 0, 0))
+        self.rect = self.original.get_rect()
+        self.img = self.original
+        self.time = time
+        self.angle = ini_angle + 1
+        self.type = type
+        self.dire = (1, 0)
+
+
+    def update(self, instance):
+        if instance.move_left == True:
+            self.dire = (-1, 0)
+        elif instance.move_right == True:
+            self.dire = (1, 0)
+
+        if self.dire == (-1, 0):
+            self.rect.x ,self.rect.y = instance.rect.left - 30, instance.rect.y + 50
+        elif self.dire == (1, 0):
+            self.rect.x ,self.rect.y = instance.rect.right + 30, instance.rect.y + 50
+        if self.type == "punch":
+            self.time -= 1
+            # print(self.time)
+            if self.time == 0:
+                instance.attacking = False
+                instance.patarn = (instance.patarn[0], 0, "normal")
+                # instance.status = instance.imgs[0]
+                self.kill()
+                
+    
+class EnemyLeadAttack(pg.sprite.Sprite):
+        def __init__(self, size,  time, type, ini_angle):
+            self.original = pg.surface(size)
+            self.img = self.original
+            self.time = time
+            self.angle = ini_angle + 1
+            self.type = type        
+
+        def update(self, fin_angle = 45):
+            if self.type == "beam":
+                self.angle += 1
+                self.img = pg.transform.rotate(self.original, angle)
+                if self.angle == fin_angle:
+                    self.kill()
+
+class BoundBalls(pg.sprite.Sprite):
+    def __init__(self, stage_width, tile_num_y):
+        super().__init__()
+        self.img = pg.image.load("fig/virus.png")
+        self.rect = self.img.get_rect()
+        self.rect.center = (stage_width * TILE_SIZE_X, 0)
+        self.vx = - 2
+        self.vy = 1
+        self.top_bordarline = 0
+        self.bottom_bordarline = ((SCREEN_HEIGHT / TILE_SIZE_Y) - tile_num_y) * TILE_SIZE_Y
+
+    def update(self):
+        self.rect.x += self.vx
+        if self.vy == 1:
+            self.rect.y += 3 # Y方向に動かす
+            # print(f"降下中{self.rect.y}")
+            if self.rect.y >= self.bottom_bordarline:
+                self.vy = -1
+        elif self.vy == -1:
+            self.rect.y -= 3
+            # print("上昇中")
+            if self.rect.y <= self.top_bordarline:
+                self.vy = 1
+        if self.rect.x <= 0:
+            self.kill()
+
 #------
 
 #---まだ
@@ -308,7 +522,7 @@ class Heart(pg.sprite.Sprite):
         self.img = pg.image.load("fig/hearts1.png")
 
     def update(self, instance, num):
-        if instance.hp == num:
+        if instance.hp < num:
             self.kill()
 
 
@@ -328,6 +542,10 @@ def main():
     pg.display.set_caption("2Dアクションゲーム デモ")
     clock = pg.time.Clock()
     # ーーーーーーーーーーーーーー
+    respond = start_page(screen, clock)
+    if respond == -1:
+        return
+    
 
     assets = Assets()
 
@@ -359,6 +577,9 @@ def main():
     
     enemys = pg.sprite.Group()
     hearts = pg.sprite.Group()
+    hovers = pg.sprite.Group()
+    player_lead_attacks = pg.sprite.Group()
+    bound_balls = pg.sprite.Group()
 
     player = Player() 
     for i in range(ENEMY_NUM):
@@ -366,10 +587,12 @@ def main():
     goal = Goal(map_data)
     for i in range(player.hp):
         hearts.add(Heart())
+    bound_balls.add(BoundBalls(len(map_data[0]), 5))
     score = Score()
     hp = Hp()
     
     camera_x = 0
+    time = 0
 
     #ーーーーーゲームスタートーーーーー
     while True:
@@ -378,10 +601,54 @@ def main():
 
         if player.rect.colliderect(goal):
             print("goal!!")
-            return
-        if player.hp < 0:
+            respond = game_clear(screen, clock, 1)
+            if respond == -1:
+                return
+            else:
+                enemys = pg.sprite.Group()
+                hearts = pg.sprite.Group()
+                hovers = pg.sprite.Group()
+                player_lead_attacks = pg.sprite.Group()
+                bound_balls = pg.sprite.Group()
+
+                player = Player() 
+                for i in range(ENEMY_NUM):
+                    enemys.add(Enemy())
+                goal = Goal(map_data)
+                for i in range(player.hp):
+                    hearts.add(Heart())
+                bound_balls.add(BoundBalls(len(map_data[0]), 5))
+                score = Score()
+                hp = Hp()
+                
+                camera_x = 0
+                time = 0 
+            
+        if player.hp <= 0:
             print("failed")
-            return 
+            respond = gameover(screen, clock)
+            if respond == -1:
+                return 
+            else: 
+                enemys = pg.sprite.Group()
+                hearts = pg.sprite.Group()
+                hovers = pg.sprite.Group()
+                player_lead_attacks = pg.sprite.Group()
+                bound_balls = pg.sprite.Group()
+
+                player = Player() 
+                for i in range(ENEMY_NUM):
+                    enemys.add(Enemy())
+                goal = Goal(map_data)
+                for i in range(player.hp):
+                    hearts.add(Heart())
+                bound_balls.add(BoundBalls(len(map_data[0]), 5))
+                score = Score()
+                hp = Hp()
+                
+                camera_x = 0
+                time = 0                
+
         for event in pg.event.get():
             #ゲーム終了
             if event.type == pg.QUIT:
@@ -395,8 +662,13 @@ def main():
                     player.move_right = True
                 if event.key == pg.K_SPACE:
                     player.hover()
+                    hovers.add(HoverAir(player, -1, 1))
+                    hovers.add(HoverAir(player, 1, 0))
                     player.is_on_ground = False
-            
+                if event.key == pg.K_p:
+                    if not player.attacking:
+                        player_lead_attacks.add(player.panch())
+
             # キーが離された時
             if event.type == pg.KEYUP:
                 if event.key == pg.K_LEFT:
@@ -406,28 +678,62 @@ def main():
                     player.vx = 0
                     player.move_right = False
         #ーーーーーーーーーーーーーーーー
-
+        heart_num = len(hearts)
         for enemy in pg.sprite.spritecollide(player, enemys, False): 
             if player.no_damage_time == 0:
                 player.hp -= 1
-                hearts.update(player, len(hearts))
-                player.no_damage()
-            else:
-                player.no_damage()
-                pass
+                for i in hearts:
+                    i.update(player, heart_num)
+                    heart_num -= 1
+                no_damage(player,1)
+
+        for bound_boll in bound_balls:
+            if player.rect.colliderect(bound_boll):
+                if player.no_damage_time == 0:
+                    player.hp -= 1
+                    for i in hearts:
+                        i.update(player, heart_num)
+                        heart_num -= 1
+                    no_damage(player,1)              
+
+        for enemy in pg.sprite.groupcollide(enemys, player_lead_attacks, False, False).keys():
+            if enemy.no_damage_time == 0:
+                enemy.hp -= 1
+                no_damage(enemy, 1)
+                # print("attacked")
+            if enemy.hp == 0:
+                enemy.kill()
+
 
         #----修正
+        # no_damage(player, 0)
         camera_x = player.update(len(map_data[0]), all_blocks, floar_blocks, camera_x)
+        # for i in player_lead_attacks:
+        #     i.update(player)
+        #     screen.blit(i.img, (100, 100))#(player.rect.x + 100, player.rect.y))
         scroll_x = -camera_x % bg_width
         #-------
 
         screen.blit(bg_img, (scroll_x - bg_width, -100))
         screen.blit(bg_img, (scroll_x, -100))
         #---修正
-        screen.blit(player.dire_to_img[player.dire], (player.rect.x - camera_x, player.rect.y))
+        screen.blit(player.patarn_to_img[player.patarn], (player.rect.x - camera_x, player.rect.y))
+        hovers.update()
+        for hover in hovers:
+            screen.blit(hover.image, (hover.rect.x - camera_x, hover.rect.y))
+        for i in player_lead_attacks:
+            i.update(player)
+            screen.blit(i.img, (i.rect.x - camera_x, i.rect.y))
+        for i in bound_balls:
+            i.update()
+            screen.blit(i.img, (i.rect.x - camera_x, i.rect.y))
+        if time % 300 == 0:
+            bound_balls.add(BoundBalls(len(map_data[0]), 5))
+
         enemys.update(all_blocks, floar_blocks, camera_x)
         for enemy in enemys:
-            screen.blit(enemy.image, (enemy.rect.x - camera_x, enemy.rect.y))
+            no_damage(enemy, 0)
+            screen.blit(enemy.patarn_to_img[enemy.patarn], (enemy.rect.x - camera_x, enemy.rect.y))
         #------
 
         for block in block_rects:
@@ -440,12 +746,12 @@ def main():
 
         # hearts.update(player, len(hearts))
         for index, i in enumerate(hearts, 1):
-            screen.blit(i.img, (100+(80 * index), 100))
-        # hp.update(player)
-        # screen.blit(hp.txt, (100, 100))
+            screen.blit(i.img, (10 + (80 * index), 0))
+        screen.blit(hp.txt, (0, 5))
         score.update()
         screen.blit(score.txt, (SCREEN_WIDTH / 10, SCREEN_HEIGHT - SCREEN_HEIGHT / 10))
         
+        time += 1
         pg.display.update()
         clock.tick(60)
 
