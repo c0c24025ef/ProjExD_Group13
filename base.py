@@ -11,21 +11,30 @@ GRAVITY = 0.8         # 重力
 JUMP_STRENGTH = -15   # ジャンプ力 (Y軸は上がマイナス)
 PLAYER_SPEED = 5      # 左右の移動速度
 
-# 色の定義
+
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 GREEN = (50, 200, 50)   # プレイヤーの色
 BROWN = (139, 69, 19)   # ブロックの色
 
-class Absurb:
-    def __init__(self, player_rect):
-        self.img = pygame.image.load("fig/tatsumaki.png")
-        self.img = pygame.transform.rotozoom(self.img, 270, 0.05)
-        self.rect = self.img.get_rect()
-        self.rect.center = ((player_rect.centerx + 40, player_rect.centery))
 
-    def update(self, player_rect):
-        self.rect.centerx = player_rect.centerx + 40
+class Absurb:
+    def __init__(self, player_rect: pygame.Rect) -> None:
+        """
+        吸収判定を初期化する関数
+        引数: プレイヤーの位置を表す矩形
+        """
+        self.img = pygame.image.load("fig/tatsumaki.png")
+        self.img = pygame.transform.rotozoom(self.img, 270, 0.05) #画像のサイズと向きを設定
+        self.rect = self.img.get_rect()
+        self.rect.center = ((player_rect.centerx + 40, player_rect.centery)) # 描写位置をプレイヤーのすぐ先に設定
+
+    def update(self, player_rect: pygame.Rect) -> None:
+        """
+        吸収判定を移動させる関数
+        引数: プレイヤーの位置を表す矩形
+        """
+        self.rect.centerx = player_rect.centerx + 40 # 描写位置を再設定
         self.rect.centery = player_rect.centery
 
 
@@ -72,7 +81,7 @@ player_move_left = False # 左に移動中か
 player_move_right = False# 右に移動中か
 
 enemy_image = pygame.image.load("fig/syujinkou_yoko.png")
-enemy_image = pygame.transform.rotozoom(enemy_image, 0, 0.1)
+enemy_image = pygame.transform.rotozoom(enemy_image, 0, 0.1) # テスト用の敵を設定
 enemy_rect = enemy_image.get_rect()
 enemy_rect.center = (300,300)
 enemy_size = 1.0
@@ -127,11 +136,12 @@ while running:
                 player_rect.right = block.left # 右端をブロックの左端に合わせる
             elif player_movement_x < 0: # 左に移動中に衝突
                 player_rect.left = block.right # 左端をブロックの右端に合わせる
+    
     if len(absurbs):
-        if player_rect.colliderect(absurbs[0]):
-            enemy_size -= 0.05
-            enemy_image = pygame.transform.rotozoom(enemy_image, 0, enemy_size)
-            enemy_rect.centery += 10
+        if player_rect.colliderect(absurbs[0]): # 敵が吸収判定に触れたとき
+            enemy_size -= 0.05 # 敵のサイズを縮める
+            enemy_image = pygame.transform.rotozoom(enemy_image, 0, enemy_size) 
+            enemy_rect.centery += 10 # 敵の位置を調整
 
     # --- 垂直方向（重力・ジャンプ）の移動と当たり判定 ---
     player_velocity_y += GRAVITY # 重力を速度に加算
