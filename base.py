@@ -1,4 +1,4 @@
-import pygame
+import pygame as pg
 import os
 import random
 import math
@@ -7,7 +7,7 @@ import time
 
 
 # 1. 定数と初期設定
-pygame.init()  # pygameを初期化
+pg.init()  # pgを初期化
 SCREEN_WIDTH = 1100
 SCREEN_HEIGHT = 600
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -23,19 +23,19 @@ GREEN = (50, 200, 50)   # プレイヤーの色
 BLACK = (0, 0, 0)   # ブロックの色
 
 # 画面設定
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("2Dアクションゲーム デモ")
-clock = pygame.time.Clock()
+screen = pg.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pg.display.set_caption("2Dアクションゲーム デモ")
+clock = pg.time.Clock()
 
-class BombEnemy(pygame.sprite.Sprite):
+class BombEnemy(pg.sprite.Sprite):
     """
     爆弾の敵に関するクラス
     """
     def __init__(self):
         super().__init__()
-        bomb_img = pygame.image.load("fig/bakudan.png")
-        self.image = pygame.transform.rotozoom(bomb_img, 0, 0.125)
-        self.rect = pygame.Rect(800, 300, TILE_SIZE, TILE_SIZE)
+        bomb_img = pg.image.load("fig/bakudan.png")
+        self.image = pg.transform.rotozoom(bomb_img, 0, 1)
+        self.rect = pg.Rect(800, 300, TILE_SIZE, TILE_SIZE)
         self.image_rect = self.image.get_rect()
         self.image_rect.center = self.rect.center
         self.vy = 0.0
@@ -82,7 +82,7 @@ class BombEnemy(pygame.sprite.Sprite):
         return dx / dist * speed, dy / dist * speed
 
 
-class Bomb(pygame.sprite.Sprite):
+class Bomb(pg.sprite.Sprite):
     """
     投げられた爆弾に関するクラス
     """
@@ -91,13 +91,18 @@ class Bomb(pygame.sprite.Sprite):
         # 爆弾の初速ベクトル
         vx, vy = bomb_enemy.get_throw_velocity()
         self.vx = vx
-        self.vy = vy
+        self.vy = vy -0.5
         # 画像と角度合わせ
-        bomb_img = pygame.image.load("fig/bom3.png")
+        bomb_img = pg.image.load("fig/bom3.png")
         angle = math.degrees(math.atan2(-self.vy, self.vx))
-        self.image = pygame.transform.rotozoom(bomb_img, angle, 0.0625)
+        self.image = pg.transform.rotozoom(bomb_img, angle, 1)
         self.rect = self.image.get_rect()
+        
+        # 発射位置を敵の中心から上方向にオフセット
         self.rect.center = bomb_enemy.image_rect.center
+        self.rect.y -= 20  # 上方向に20ピクセル移動
+        
+        # 発射方向へのオフセット
         offset = max(bomb_enemy.rect.width, bomb_enemy.rect.height) // 2 + 6
         if not (vx == 0 and vy == 0):
             norm = math.hypot(vx, vy)
@@ -111,8 +116,7 @@ class Bomb(pygame.sprite.Sprite):
 
     def update(self, blocks):
         """
-        爆弾の移動（等速移動 + 少しの重力）と位置更新。
-        地面（blocks）と衝突したら fig/boom.png に差し替えて一定フレーム表示後に消滅する。
+        爆弾の移動と位置更新。
         """
         if self.exploded:
             # 爆発中はカウントダウンして寿命が尽きたら削除
@@ -122,7 +126,7 @@ class Bomb(pygame.sprite.Sprite):
             return
 
         # 少し重力を加えて落下させる
-        self.vy += GRAVITY * 0.5
+        self.vy += GRAVITY * 0.08
         # 位置更新（小数切り捨てで位置を進める）
         self.rect.x += int(self.vx)
         self.rect.y += int(self.vy)
@@ -134,13 +138,12 @@ class Bomb(pygame.sprite.Sprite):
                 old_center = self.rect.center
                 # boom 画像に切り替え
                 try:
-                    boom_img = pygame.image.load("fig/boom.png")
+                    boom_img = pg.image.load("fig/boom.png")
                 except Exception:
                     boom_img = None
 
                 if boom_img:
-                    # 爆発画像を適切なスケールで読み込み、爆弾の中心に合わせる
-                    self.image = pygame.transform.rotozoom(boom_img, 0, 0.125)
+                    self.image = pg.transform.rotozoom(boom_img, 0, 1)
                     self.rect = self.image.get_rect(center=old_center)
                 # 移動停止して爆発状態に切替
                 self.vx = 0.0
@@ -153,20 +156,19 @@ class Bomb(pygame.sprite.Sprite):
         screen.blit(self.image, self.rect)
 
 
-class SlotEnemy(pygame.sprite.Sprite):
+class SlotEnemy(pg.sprite.Sprite):
     """
     スロットの敵に関するクラス
     """
     def __init__(self, x: int | None = None, y: int | None = None):
         super().__init__()
-        slot_img = pygame.image.load("fig/slot.png")
-        self.image = pygame.transform.rotozoom(slot_img, 0, 0.125)
+        slot_img = pg.image.load("fig/slot.png")
+        self.image = pg.transform.rotozoom(slot_img, 0, 1)
         # デフォルト初期位置（BombEnemy と同じ書き方）
-        self.rect = pygame.Rect(800, 150, TILE_SIZE, TILE_SIZE)
+        self.rect = pg.Rect(800, 150, TILE_SIZE, TILE_SIZE)
         self.image_rect = self.image.get_rect()
         self.image_rect.center = self.rect.center
 
-        # コンストラクタ引数で座標が与えられていれば中心を設定する
         if x is not None and y is not None:
             self.rect.centerx = int(x)
             self.rect.centery = int(y)
@@ -195,17 +197,16 @@ class SlotEnemy(pygame.sprite.Sprite):
         screen.blit(self.image, self.image_rect)
 
 
-class FireEnemy(pygame.sprite.Sprite):
+class FireEnemy(pg.sprite.Sprite):
     """
     炎の敵に関するクラス
     """
     def __init__(self):
         super().__init__()
-        fire_img = pygame.image.load("fig/fire_enemy.png")
-        fire_img = pygame.transform.flip(fire_img, True, False)  # 水平方向に反転
-        self.image = pygame.transform.rotozoom(fire_img, 0, 0.125)
-        # 当たり用 rect と表示用 rect を保持（BombEnemy と同様）
-        self.rect = pygame.Rect(700, 300, TILE_SIZE, TILE_SIZE)
+        fire_img = pg.image.load("fig/fire_enemy.png")
+        fire_img = pg.transform.flip(fire_img, True, False)  # 水平方向に反転
+        self.image = pg.transform.rotozoom(fire_img, 0, 1)
+        self.rect = pg.Rect(700, 300, TILE_SIZE, TILE_SIZE)
         self.image_rect = self.image.get_rect()
         self.image_rect.center = self.rect.center
         # 物理量（BombEnemy と同様）
@@ -236,41 +237,39 @@ class FireEnemy(pygame.sprite.Sprite):
     def draw(self, screen):
         screen.blit(self.image, self.image_rect)
 
-class SlotWeapon(pygame.sprite.Sprite):
+class SlotWeapon(pg.sprite.Sprite):
     """
     スロットから発射される弾
     """
     def __init__(self, sx: int, sy: int, vx: float, vy: float):
         super().__init__()
-        weapon_img = pygame.image.load("fig/slot_weapon.png")
+        weapon_img = pg.image.load("fig/slot_weapon.png")
         angle = math.degrees(math.atan2(-vy, vx))
-        self.image = pygame.transform.rotozoom(weapon_img, angle, 0.125)
+        self.image = pg.transform.rotozoom(weapon_img, angle, 1)
         self.rect = self.image.get_rect()
         self.rect.center = (int(sx), int(sy))
         self.vx = float(vx)
         self.vy = float(vy)
 
     def update(self, blocks=None):
-        # 等速直線移動（blocks は仕様互換のため受け取るが使用しない）
-        # move_ip を使って移動（浮動小数の扱いは Rect 側で整数化される）
         self.rect.move_ip(int(self.vx), int(self.vy))
 
     def draw(self, screen):
         screen.blit(self.image, self.rect)
 
-class FireWeapon(pygame.sprite.Sprite):
+class FireWeapon(pg.sprite.Sprite):
     """
     炎の敵から発射される弾
     """
     def __init__(self, sx: int, sy: int, vx: float):
         super().__init__()
-        weapon_img = pygame.image.load("fig/fire.png")  # 弾の画像（要作成）
-        self.image = pygame.transform.rotozoom(weapon_img, 0, 0.125)
+        weapon_img = pg.image.load("fig/fire.png")
+        self.image = pg.transform.rotozoom(weapon_img, 0, 1)
         self.rect = self.image.get_rect()
         self.rect.center = (int(sx), int(sy))
-        self.vx = float(vx)  # X方向速度（一定）
-        self.base_y = float(sy - 80)  # Y座標の基準位置
-        self.time = 0  # 正弦波の時間パラメータ
+        self.vx = float(vx)
+        self.base_y = float(sy - 80) 
+        self.time = 0
         
     def update(self, blocks=None):
         self.rect.x += int(self.vx)
@@ -303,12 +302,12 @@ block_rects = []
 for y, row in enumerate(map_data):
     for x, tile_type in enumerate(row):
         if tile_type == 1:
-            # (x座標, y座標, 幅, 高さ) のRectを作成
-            block_rects.append(pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE))
+            # (x座標, y座標, 幅, 高さ) 
+            block_rects.append(pg.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE))
 
 # 4. プレイヤー設定
 # プレイヤーを (幅20, 高さ40) の四角形として定義
-player_rect = pygame.Rect(100, 100, TILE_SIZE // 2, TILE_SIZE) # 初期位置(100,100)
+player_rect = pg.Rect(100, 100, TILE_SIZE // 2, TILE_SIZE) # 初期位置(100,100)
 player_velocity_y = 0  # プレイヤーの垂直方向の速度
 is_on_ground = False     # 地面（ブロック）に接地しているか
 player_move_left = False # 左に移動中か
@@ -318,25 +317,25 @@ player_move_right = False# 右に移動中か
 tmr = 0
 
 # 爆弾の敵
-bomb_enemies = pygame.sprite.Group()
+bomb_enemies = pg.sprite.Group()
 bomb_enemy = BombEnemy()
 bomb_enemies.add(bomb_enemy)
 
 # 炎の敵を追加
-fire_enemies = pygame.sprite.Group()
+fire_enemies = pg.sprite.Group()
 fire_enemy = FireEnemy()
 fire_enemies.add(fire_enemy)
 
 # 炎の弾のグループを追加
-fire_weapons = pygame.sprite.Group()
+fire_weapons = pg.sprite.Group()
 
 # 投げた爆弾のグループ
-bombs = pygame.sprite.Group()
+bombs = pg.sprite.Group()
 
 # ここにスロット敵用のグループを追加
-slot_enemies = pygame.sprite.Group()
+slot_enemies = pg.sprite.Group()
 # スロットから発射される弾のグループ
-slot_weapons = pygame.sprite.Group()
+slot_weapons = pg.sprite.Group()
 slot_enemies.add(SlotEnemy())
 
 # タイマーを初期化（tmr が未定義だったため追加）
@@ -347,25 +346,25 @@ running = True
 while running:
     
     # 6. イベント処理 (キー操作など)
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
             running = False
         
         # キーが押された時
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_LEFT:
+        if event.type == pg.KEYDOWN:
+            if event.key == pg.K_LEFT:
                 player_move_left = True
-            if event.key == pygame.K_RIGHT:
+            if event.key == pg.K_RIGHT:
                 player_move_right = True
-            if event.key == pygame.K_UP and is_on_ground:
+            if event.key == pg.K_UP and is_on_ground:
                 player_velocity_y = JUMP_STRENGTH # 上向きの速度を与える
                 is_on_ground = False
         
         # キーが離された時
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_LEFT:
+        if event.type == pg.KEYUP:
+            if event.key == pg.K_LEFT:
                 player_move_left = False
-            if event.key == pygame.K_RIGHT:
+            if event.key == pg.K_RIGHT:
                 player_move_right = False
 
     # 7. プレイヤーのロジック更新 (移動と当たり判定)
@@ -455,10 +454,10 @@ while running:
     
     # ステージ（ブロック）を描画
     for block in block_rects:
-        pygame.draw.rect(screen, BLACK, block)
+        pg.draw.rect(screen, BLACK, block)
         
     # プレイヤーを描画
-    pygame.draw.rect(screen, GREEN, player_rect)
+    pg.draw.rect(screen, GREEN, player_rect)
     
     # 爆弾の敵の更新と描画
     for b_enemy in bomb_enemies:
@@ -496,12 +495,12 @@ while running:
             fire_weapons.remove(w)
 
     # 画面を更新
-    pygame.display.flip()
+    pg.display.flip()
     
     # 9. FPS (フレームレート) の制御
     clock.tick(60) # 1秒間に60回ループが回るように調整
     # タイマーを進める
     tmr += 1
 
-# ループが終了したらPygameを終了
-pygame.quit()
+# ループが終了したらpgを終了
+pg.quit()
