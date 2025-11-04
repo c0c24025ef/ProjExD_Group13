@@ -13,7 +13,7 @@ ADD_STAGE_BLOCK = 100 # ステージの拡張幅
 GRAVITY = 0.8         # 重力
 JUMP_STRENGTH = -15   # ジャンプ力 (Y軸は上がマイナス)
 HOVER_AIR_TIME = 60   # ホバーエフェクトの表示時間(フレーム単位)
-PLAYER_SPEED = 100      # 左右の移動速度
+PLAYER_SPEED = 10      # 左右の移動速度
 PLAYER_HP = 5
 NO_DAMAGE_TIME = 120 # 無敵時間(フレーム単位)
 PLAYER_POWER = 10 # プレイヤーの攻撃力
@@ -55,6 +55,16 @@ def start_page(screen: pg.surface, clock: pg.time.Clock) -> int:
         clock.tick(60)
 
 
+
+# 画面設定
+
+
+# enemy_image = pygame.image.load("fig/syujinkou_yoko.png")
+# enemy_image = pygame.transform.rotozoom(enemy_image, 0, 0.1) # テスト用の敵を設定
+# enemy_rect = enemy_image.get_rect()
+# enemy_rect.center = (300,300)
+# enemy_size = 1.0
+
 def gameover(screen: pg.surface, clock: pg.time.Clock) -> int:
     """
     ゲームオーバー画面を表示する関数
@@ -88,8 +98,9 @@ def gameover(screen: pg.surface, clock: pg.time.Clock) -> int:
         
         pg.display.update()
         clock.tick(60)
+#ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 
-
+#ーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーーー
 def game_clear(screen: pg.surface, clock: pg.time.Clock) -> int:
     """
     クリア画面を表示する関数
@@ -373,6 +384,26 @@ class Player(pg.sprite.Sprite):
         return attack
 
 #---
+class Absurb(pg.sprite.Sprite):
+    def __init__(self, instance: object) -> None:
+        """
+        吸収判定を初期化する関数
+        引数: 吸収機能を持つインスタンス
+        """
+        super().__init__()
+        self.img = pg.image.load("fig/tatsumaki.png")
+        self.img = pg.transform.rotozoom(self.img, 270, 0.05) #画像のサイズと向きを設定
+        self.rect = self.img.get_rect()
+        self.rect.center = ((instance.rect.centerx + 40, instance.rect.centery)) # 描写位置をプレイヤーのすぐ先に設定
+
+    def update(self, player_rect: pg.Rect) -> None:
+        """
+        吸収判定を移動させる関数
+        引数: プレイヤーの位置を表す矩形
+        """
+        self.rect.centerx = player_rect.centerx + 40 # 描写位置を再設定
+        self.rect.centery = player_rect.centery
+
 class HoverAir(pg.sprite.Sprite):
     def __init__(self, instance, flag, flag_air_dire):
         super().__init__()
@@ -402,6 +433,7 @@ class Enemy(pg.sprite.Sprite):
         self.flip = pg.transform.flip(self.image, True, False)
         self.rect = self.image.get_rect()
         self.rect.center = (1000, 0) #テスト用で定数
+        self.size = 1.0
         self.vx = ENEMY_SPEED
         self.vy = 0
         self.patarn = (1, 0, "normal")
@@ -597,6 +629,7 @@ def main():
     hovers = pg.sprite.Group()
     player_lead_attacks = pg.sprite.Group()
     bound_balls = pg.sprite.Group()
+    absurbs = pg.sprite.Group()
 
     player = Player() 
     for i in range(ENEMY_NUM):
@@ -685,6 +718,8 @@ def main():
                 if event.key == pg.K_p:
                     if not player.attacking:
                         player_lead_attacks.add(player.panch())
+                if event.key == pg.K_a:
+                    absurbs.add(Absurb(player))
 
             # キーが離された時
             if event.type == pg.KEYUP:
@@ -694,6 +729,8 @@ def main():
                 if event.key == pg.K_RIGHT:
                     player.vx = 0
                     player.move_right = False
+                if event.key == pg.K_a:
+                    absurbs.empty()
         #ーーーーーーーーーーーーーーーー
         heart_num = len(hearts)
         for enemy in pg.sprite.spritecollide(player, enemys, False): 
@@ -703,6 +740,12 @@ def main():
                     i.update(player, heart_num)
                     heart_num -= 1
                 no_damage(player,1)
+
+        for enemy in pg.sprite.groupcollide(absurbs, enemys, False, False).keys():
+            enemy.size -= 0.05
+            enemy.img = pg.transform.rotozoom(enemy.original, 0, enemy.size)
+            enemy.rect.centery += 10
+
 
         for bound_boll in bound_balls:
             if player.rect.colliderect(bound_boll):
@@ -741,6 +784,12 @@ def main():
         for i in player_lead_attacks:
             i.update(player)
             screen.blit(i.img, (i.rect.x - camera_x, i.rect.y))
+
+        for i in absurbs:
+            i.update(player)
+            screen.blit(i.img, i.rect)
+
+
         for i in bound_balls:
             i.update()
             screen.blit(i.img, (i.rect.x - camera_x, i.rect.y))
