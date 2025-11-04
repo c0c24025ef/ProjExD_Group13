@@ -1,9 +1,9 @@
-import pygame
+import pygame as pg
 import os
 import random
 
 # 1. 定数と初期設定
-pygame.init()
+pg.init()
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -19,9 +19,9 @@ GREEN = (50, 200, 50)   # プレイヤーの色
 BROWN = (139, 69, 19)   # ブロックの色
 
 # 画面設定
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("2Dアクションゲーム デモ")
-clock = pygame.time.Clock()
+screen = pg.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pg.display.set_caption("2Dアクションゲーム デモ")
+clock = pg.time.Clock()
 
 # 2. ステージデータ (0=空, 1=ブロック)
 # 画面下部が地面、途中に浮島があるマップ
@@ -46,18 +46,20 @@ map_data = [
 # 3. ステージの「当たり判定用の四角形(Rect)」リストを作成
 # (ゲーム開始時に一度だけ計算する)
 block_rects = []
+# グローバル：壁衝突時の小規模爆発エフェクトを格納するリスト
+explosion_effects = []
 
 # ==== 追加：炎の玉 & かーびー ====
 class FireBall:
     """炎の玉：横に飛び、寿命で消える"""
     def __init__(self, x, y, direction):
         try:
-            self.image = pygame.image.load("fig/fire.jpg").convert_alpha()
-            self.image = pygame.transform.scale(self.image, (20, 20))
+            self.image = pg.image.load("fig/fire.jpg").convert_alpha()
+            self.image = pg.transform.scale(self.image, (20, 20))
         except Exception:
             self.image = None  # 画像が無い場合は自前描画
         # rect は中心位置で受け取るようにする
-        self.rect = pygame.Rect(0, 0, 25, 25)
+        self.rect = pg.Rect(0, 0, 25, 25)
         self.rect.center = (x, y)
         self.speed = 12 * direction  # 水平速度
         # 垂直方向の物理 (重力 + バウンド)
@@ -117,7 +119,7 @@ class FireBall:
             color = (r, g, y)
             for i in range(3):
                 radius = max(1, 10 - i * 3)
-                pygame.draw.circle(screen, color, self.rect.center, radius)
+                pg.draw.circle(screen, color, self.rect.center, radius)
         return True
 
 
@@ -133,10 +135,11 @@ class BreathParticle:
         if direction >= 0:
             candidates = ("fig/fire_right.png", "fig/fire.jpg")
         else:
-            candidates = ("fig/fire_reft.png", "fig/fire.jpg")
+                candidates = ("fig/fire_left.png", "fig/fire_reft.png", "fig/fire.jpg")
         for fname in candidates:
             try:
-                img = pygame.image.load(fname).convert_alpha()
+                img = pg.image.load(fname).convert_alpha()
+                self.src_name = os.path.basename(fname)
                 break
             except Exception:
                 img = None
@@ -144,10 +147,12 @@ class BreathParticle:
             # 吐息は横長にして少し大きめに
             w = 64
             h = 28
-            img = pygame.transform.scale(img, (w, h))
-            # 左向きなら反転（ファイルが左向きでない場合に備える）
+            img = pg.transform.scale(img, (w, h))
+            # 左向きなら、読み込んだ画像が右向き（または汎用画像）だった場合のみ反転する
             if direction < 0:
-                img = pygame.transform.flip(img, True, False)
+                src = getattr(self, 'src_name', '')
+                if any(k in src for k in ('fire_right', 'fire.jpg', 'fire-right')):
+                    img = pg.transform.flip(img, True, False)
             self.image = img
             self.rect = self.image.get_rect()
             # 口元に沿わせるため、画像の左端/右端を口の位置に合わせる
@@ -160,7 +165,8 @@ class BreathParticle:
         else:
             # 画像がなければ円で表現
             self.image = None
-            self.rect = pygame.Rect(0, 0, 12, 12)
+            self.rect = pg.Rect(0, 0, 12, 12)
+            self.src_name = ""
             if direction >= 0:
                 self.rect.midleft = (x, y)
             else:
@@ -174,6 +180,13 @@ class BreathParticle:
         # ブロックに当たれば消える
         for block in block_rects:
             if self.rect.colliderect(block):
+                # 特定の吐息画像（fire_right/fire_reft/fire_left）が当たった場合は爆発を発生させる
+                src = getattr(self, 'src_name', '')
+                if any(k in src for k in ('fire_right', 'fire_reft', 'fire_left', 'fire-left')):
+                    try:
+                        explosion_effects.append(ExplosionEffect(self.rect.center))
+                    except Exception:
+                        pass
                 return False
 
         # 画面外で消える
@@ -185,15 +198,15 @@ class BreathParticle:
             # 少し上下にゆらぎを入れて炎らしく見せる
             dy = random.randint(-3, 3)
             # グロー（薄い半透明の円）を先に描く
-            glow_surf = pygame.Surface((self.rect.width * 2, self.rect.height * 2), pygame.SRCALPHA)
+            glow_surf = pg.Surface((self.rect.width * 2, self.rect.height * 2), pg.SRCALPHA)
             glow_color = (255, 180, 70, 80)
-            pygame.draw.ellipse(glow_surf, glow_color, glow_surf.get_rect())
+            pg.draw.ellipse(glow_surf, glow_color, glow_surf.get_rect())
             screen.blit(glow_surf, (self.rect.centerx - glow_surf.get_width() // 2, self.rect.centery - glow_surf.get_height() // 2 + dy))
             # 本体を描画
             screen.blit(self.image, (self.rect.x, self.rect.y + dy))
         else:
             color = (255, 160, 60)
-            pygame.draw.circle(screen, color, self.rect.center, 6)
+            pg.draw.circle(screen, color, self.rect.center, 6)
         return True
 
 
@@ -201,12 +214,13 @@ class CrashEffect:
     """自己中心の爆発エフェクト（非破壊・視覚効果）"""
     def __init__(self, center):
         self.center = center
-        self.life = 20
-        self.max_radius = 90
+        # 少し長めに表示し、範囲を広げる
+        self.life = 26
+        self.max_radius = 140
         # 可能なら画像を読み込んで爆発に使う
         self.image = None
         try:
-            img = pygame.image.load("fig/fire_crash.png").convert_alpha()
+            img = pg.image.load("fig/fire_crash.png").convert_alpha()
             self.image = img
         except Exception:
             self.image = None
@@ -219,18 +233,51 @@ class CrashEffect:
             # スケールサイズは現在の radius に合わせる（直径）
             size = max(2, radius * 2)
             try:
-                img = pygame.transform.smoothscale(self.image, (size, size))
+                img = pg.transform.smoothscale(self.image, (size, size))
             except Exception:
-                img = pygame.transform.scale(self.image, (size, size))
+                img = pg.transform.scale(self.image, (size, size))
             # フェードアウトするアルファ
             alpha = int(220 * (1.0 - t))
             img.set_alpha(alpha)
             screen.blit(img, (self.center[0] - size // 2, self.center[1] - size // 2))
         else:
-            surf = pygame.Surface((self.max_radius * 2, self.max_radius * 2), pygame.SRCALPHA)
+            surf = pg.Surface((self.max_radius * 2, self.max_radius * 2), pg.SRCALPHA)
             alpha = int(200 * (1.0 - t))
-            pygame.draw.circle(surf, (255, 180, 80, alpha), (self.max_radius, self.max_radius), max(1, radius))
+            pg.draw.circle(surf, (255, 180, 80, alpha), (self.max_radius, self.max_radius), max(1, radius))
             screen.blit(surf, (self.center[0] - self.max_radius, self.center[1] - self.max_radius))
+        self.life -= 1
+        return self.life > 0
+
+
+class ExplosionEffect:
+    """壁に当たったときの小規模爆発（視覚効果）"""
+    def __init__(self, center):
+        self.center = center
+        self.life = 12
+        self.max_size = 64
+        self.image = None
+        try:
+            img = pg.image.load("fig/exposion.png").convert_alpha()
+            self.image = img
+        except Exception:
+            self.image = None
+
+    def update(self, screen):
+        t = (12 - self.life) / 12.0
+        size = int(self.max_size * (0.5 + t * 0.5))
+        if self.image:
+            try:
+                img = pg.transform.smoothscale(self.image, (size, size))
+            except Exception:
+                img = pg.transform.scale(self.image, (size, size))
+            alpha = int(255 * (1.0 - t))
+            img.set_alpha(alpha)
+            screen.blit(img, (self.center[0] - size // 2, self.center[1] - size // 2))
+        else:
+            surf = pg.Surface((self.max_size, self.max_size), pg.SRCALPHA)
+            alpha = int(200 * (1.0 - t))
+            pg.draw.circle(surf, (255, 180, 60, alpha), (self.max_size // 2, self.max_size // 2), max(1, size // 2))
+            screen.blit(surf, (self.center[0] - self.max_size // 2, self.center[1] - self.max_size // 2))
         self.life -= 1
         return self.life > 0
 
@@ -238,11 +285,18 @@ class CrashEffect:
 class kirby_fire:
     """かーびー本体（見た目＋炎の管理だけ。移動や当たり判定は既存ロジックを使用）"""
     def __init__(self, player_rect_ref):
+        # 右向き・左向き用の画像をそれぞれ読み込む
+        self.img_right = None
+        self.img_left = None
         try:
-            self.img = pygame.image.load("fig/kirby_fire.png").convert_alpha()
-            self.img = pygame.transform.scale(self.img, (50, 50))
+            # 右向き画像
+            self.img_right = pg.image.load("fig/kirby_fire.png").convert_alpha()
+            self.img_right = pg.transform.scale(self.img_right, (50, 50))
+            # 左向き画像
+            self.img_left = pg.image.load("fig/koukaton2.png").convert_alpha()
+            self.img_left = pg.transform.scale(self.img_left, (50, 50))
         except Exception:
-            self.img = None  # 無ければ四角のまま
+            pass  # 画像が読めなければ四角形で代用
         self.rect = player_rect_ref  # 既存の player_rect を共有
         self.rect.size = (28, 28)  # かーびーのサイズに合わせる
         self.fireballs = []
@@ -263,21 +317,22 @@ class kirby_fire:
         elif move_right and not move_left:
             self.facing = 1
         # Zキーで炎発射（進行方向に飛ぶ）
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_z:
-            direction = -1 if (move_left and not move_right) else 1
+        if event.type == pg.KEYDOWN and event.key == pg.K_z:
+            # 発射方向は常にカービィの向きに合わせる（左右双方から出るように）
+            direction = self.facing
             # 発射位置：口の位置に合わせる（体の前方・少し上）
             fx = self.rect.centerx + self.facing * (self.rect.width // 2)
             fy = self.rect.centery - 6
             self.fireballs.append(FireBall(fx, fy, direction))
 
         # Xキーで吐息（押している間持続）
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_x:
+        if event.type == pg.KEYDOWN and event.key == pg.K_x:
             self.breathing = True
-        if event.type == pygame.KEYUP and event.key == pygame.K_x:
+        if event.type == pg.KEYUP and event.key == pg.K_x:
             self.breathing = False
 
         # Cキーでクラッシュ（単発・クールタイム無し）
-        if event.type == pygame.KEYDOWN and event.key == pygame.K_c:
+        if event.type == pg.KEYDOWN and event.key == pg.K_c:
             # クールダウンなしで常に発動可能にする
             self.crashes.append(CrashEffect(self.rect.center))
     def draw_and_update(self, screen):
@@ -313,11 +368,24 @@ class kirby_fire:
                 alive_c.append(ce)
         self.crashes = alive_c
 
+        # 壁衝突用の小規模爆発エフェクトの更新
+        alive_e = []
+        for ee in explosion_effects:
+            try:
+                if ee.update(screen):
+                    alive_e.append(ee)
+            except Exception:
+                pass
+        # グローバルリストを更新（短命なので他と同じように扱う）
+        explosion_effects[:] = alive_e
+
         # 本体描画（画像があれば画像）
-        if self.img:
-            screen.blit(self.img, self.rect)
+        if self.img_right and self.img_left:
+            # 向きに応じて適切な画像を選択（左向き=kirby_fire, 右向き=koukaton2）
+            img = self.img_left if self.facing > 0 else self.img_right
+            screen.blit(img, self.rect)
         else:
-            pygame.draw.rect(screen, (50, 200, 50), self.rect)
+            pg.draw.rect(screen, (50, 200, 50), self.rect)
 # ==== 追加ここまで ====
 
 
@@ -325,11 +393,11 @@ for y, row in enumerate(map_data):
     for x, tile_type in enumerate(row):
         if tile_type == 1:
             # (x座標, y座標, 幅, 高さ) のRectを作成
-            block_rects.append(pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE))
+            block_rects.append(pg.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE))
 
 # 4. プレイヤー設定
 # プレイヤーを (幅20, 高さ40) の四角形として定義
-player_rect = pygame.Rect(100, 100, TILE_SIZE // 2, TILE_SIZE) 
+player_rect = pg.Rect(100, 100, TILE_SIZE // 2, TILE_SIZE) 
 player_velocity_y = 0  # プレイヤーの垂直方向の速度
 is_on_ground = False     # 地面（ブロック）に接地しているか
 player_move_left = False # 左に移動中か
@@ -342,25 +410,25 @@ running = True
 while running:
     
     # 6. イベント処理 (キー操作など)
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
+    for event in pg.event.get():
+        if event.type == pg.QUIT:
             running = False
         
         # キーが押された時
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_LEFT:
+        if event.type == pg.KEYDOWN:
+            if event.key == pg.K_LEFT:
                 player_move_left = True
-            if event.key == pygame.K_RIGHT:
+            if event.key == pg.K_RIGHT:
                 player_move_right = True
-            if event.key == pygame.K_SPACE and is_on_ground:
+            if event.key == pg.K_SPACE and is_on_ground:
                 player_velocity_y = JUMP_STRENGTH # 上向きの速度を与える
                 is_on_ground = False
         
         # キーが離された時
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_LEFT:
+        if event.type == pg.KEYUP:
+            if event.key == pg.K_LEFT:
                 player_move_left = False
-            if event.key == pygame.K_RIGHT:
+            if event.key == pg.K_RIGHT:
                 player_move_right = False
         kirby.handle_input(event, player_move_left, player_move_right)
 
@@ -404,17 +472,17 @@ while running:
     
     # ステージ（ブロック）を描画
     for block in block_rects:
-        pygame.draw.rect(screen, BROWN, block)
+        pg.draw.rect(screen, BROWN, block)
         
     # プレイヤーを描画
     kirby.draw_and_update(screen)
 
     
     # 画面を更新
-    pygame.display.flip()
+    pg.display.flip()
     
     # 9. FPS (フレームレート) の制御
     clock.tick(60) # 1秒間に60回ループが回るように調整
 
-# ループが終了したらPygameを終了
-pygame.quit()
+# ループが終了したらpgを終了
+pg.quit()
