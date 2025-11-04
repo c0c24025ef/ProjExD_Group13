@@ -129,11 +129,11 @@ class BreathParticle:
         self.speed = 4 * direction  # 以前より遅くしてストリーム感を出す
         self.life = 30
         img = None
-        # 優先して吐息用画像を読み込む
+        # 優先して吐息用画像を読み込む（fire_a.pngは参照しない）
         if direction >= 0:
-            candidates = ("fig/fire_right.png", "fig/fire_a.png", "fig/fire.jpg")
+            candidates = ("fig/fire_right.png", "fig/fire.jpg")
         else:
-            candidates = ("fig/fire_reft.png", "fig/fire_a.png", "fig/fire.jpg")
+            candidates = ("fig/fire_reft.png", "fig/fire.jpg")
         for fname in candidates:
             try:
                 img = pygame.image.load(fname).convert_alpha()
@@ -400,7 +400,7 @@ while running:
                 player_velocity_y = 0 # 上昇速度をリセット（頭を打った）
 
     # 8. 描画処理
-    screen.fill(BLACK) # 画面を黒で塗りつぶし
+    screen.fill((255, 255, 255)) # 画面塗りつぶし
     
     # ステージ（ブロック）を描画
     for block in block_rects:
