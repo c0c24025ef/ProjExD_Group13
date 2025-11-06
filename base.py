@@ -4,6 +4,12 @@ import sys
 import random
 
 #ーーーーーーーーー1.定数と初期設定ーーーーーーーーー
+import time
+
+#あとで調整！！！！！
+# サウンドミキサーを明示的に初期化（周波数、ビット深度、チャンネル数を指定）
+pg.mixer.quit()  # 一度終了
+pg.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600 # 画面のサイズ
@@ -19,6 +25,135 @@ NO_DAMAGE_TIME = 120 # 無敵時間(フレーム単位)
 PLAYER_POWER = 10 # プレイヤーの攻撃力
 ENEMY_NUM = 1         # 敵の数
 ENEMY_SPEED = 1
+
+# ----------------------------------------------------------------
+# ========================================
+# 個人実装: 爆弾画像の読み込み (C0C24001)
+# ========================================
+try:
+    c0c24001_bomb_image = pg.image.load(os.path.join("img", "bom3.png")).convert_alpha()
+    c0c24001_bomb_image = pg.transform.smoothscale(c0c24001_bomb_image, (TILE_SIZE, TILE_SIZE))
+except Exception:
+    # 画像がない場合は黒い円で代替
+            # c0c24001_bomb_image = pg.Surface((TILE_SIZE, TILE_SIZE), pg.SRCALPHA)
+            # pg.draw.circle(c0c24001_bomb_image, BLACK, (TILE_SIZE // 2, TILE_SIZE // 2), TILE_SIZE // 2)
+        pass
+
+# 爆発エフェクト画像の読み込み（GIFアニメーション対応）
+try:
+    from PIL import Image
+    # PILでGIFを読み込んでフレームを抽出
+    gif_path = os.path.join("img", "bakuha.gif")
+    pil_gif = Image.open(gif_path)
+    
+    c0c24001_explosion_frames = []
+    c0c24001_explosion_size = C0C24001_BOMB_EXPLOSION_RADIUS * 2
+    
+    # 全フレームを読み込む
+    try:
+        frame_index = 0
+        while True:
+            pil_gif.seek(frame_index)
+            # PILイメージをpgサーフェスに変換
+            frame = pil_gif.convert("RGBA")
+            frame_data = frame.tobytes()
+            pg_surface = pg.image.fromstring(frame_data, frame.size, "RGBA")
+            # スケーリング
+            pg_surface = pg.transform.smoothscale(pg_surface, (c0c24001_explosion_size, c0c24001_explosion_size))
+            c0c24001_explosion_frames.append(pg_surface)
+            frame_index += 1
+    except EOFError:
+        pass  # 全フレーム読み込み完了
+    
+    if c0c24001_explosion_frames:
+        print(f"爆発エフェクト画像を読み込みました: img/bakuha.gif ({len(c0c24001_explosion_frames)}フレーム)")
+    else:
+        c0c24001_explosion_frames = None
+        print("GIFフレームの読み込みに失敗しました")
+        
+except ImportError:
+    c0c24001_explosion_frames = None
+    print("警告: Pillow (PIL) がインストールされていません")
+    print("GIFアニメーションを使用するには 'pip install pillow' を実行してください")
+    print("デフォルトの円形エフェクトを使用します。")
+except Exception as e:
+    c0c24001_explosion_frames = None
+    print(f"爆発エフェクト画像の読み込みに失敗: {e}")
+    print("デフォルトの円形エフェクトを使用します。")
+
+# 背景画像の読み込み
+try:
+    background_image = pg.image.load(os.path.join("img", "haikei.jpg")).convert()
+    # 画面サイズに合わせてスケーリング
+    background_image = pg.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+    print("背景画像を読み込みました: img/haikei.jpg")
+except Exception as e:
+    # 画像がない場合は黒背景
+    background_image = None
+    print(f"背景画像の読み込みに失敗: {e}")
+    print("黒背景を使用します。")
+
+# 爆発音の読み込み
+explosion_sound = None
+sound_paths = [
+    os.path.join("bgm", "bom.mp3"),
+    os.path.join("bgm", "bom.wav"),
+    os.path.join("img", "bom.mp3"),
+    os.path.join("img", "bom.wav"),
+    "bom.mp3",
+    "bom.wav"
+]
+
+for sound_path in sound_paths:
+    try:
+        if os.path.exists(sound_path):
+            explosion_sound = pg.mixer.Sound(sound_path)
+            print(f"爆発音を読み込みました: {sound_path}")
+            break
+    except Exception as e:
+        print(f"音声ファイル {sound_path} の読み込みに失敗: {e}")
+
+if explosion_sound is None:
+    print("警告: 爆発音ファイルが見つかりません。")
+    print("bgm/bom.mp3 または img/bom.wav を配置してください。")
+
+# BGM（背景音楽）の読み込みと再生
+print("BGMの読み込みを開始...")
+# 複数の形式を試す（OGGを優先）
+bgm_files = [
+    ("bgm", "music.ogg"),   # OGG形式（推奨）
+    ("bgm", "music.wav"),   # WAV形式
+    ("bgm", "music.mp3"),   # MP3形式（互換性に問題がある場合あり）
+]
+
+bgm_loaded = False
+for folder, filename in bgm_files:
+    bgm_path = os.path.join(folder, filename)
+    if os.path.exists(bgm_path):
+        print(f"ファイルが見つかりました: {bgm_path}")
+        try:
+            pg.mixer.music.load(bgm_path)
+            pg.mixer.music.set_volume(0.3)
+            pg.mixer.music.play(-1)
+            print(f"✓ BGMの再生を開始しました: {filename}")
+            bgm_loaded = True
+            break
+        except pg.error as e:
+            print(f"✗ {filename} の読み込みに失敗: {e}")
+            continue
+
+if not bgm_loaded:
+    print("=" * 60)
+    print("【BGMが再生できませんでした】")
+    print("MP3ファイルがpgと互換性がない可能性があります。")
+    print("")
+    print("解決方法：")
+    print("1. https://convertio.co/ja/mp3-ogg/ で変換")
+    print("2. music.mp3 を OGG形式に変換")
+    print("3. 変換したファイル(music.ogg)をbgmフォルダに保存")
+    print("")
+    print("ゲームは音楽なしで続行します。")
+    print("=" * 60)
 #ーーーーーーーーーーーーーーーーーーーーーーーーーー
 #---まだ
 def start_page(screen: pg.surface, clock: pg.time.Clock) -> int:
@@ -57,6 +192,22 @@ def start_page(screen: pg.surface, clock: pg.time.Clock) -> int:
 
 
 # 画面設定
+# 色の定義
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (50, 200, 50)   # プレイヤーの色
+BROWN = (139, 69, 19)   # ブロックの色
+RED = (255, 0, 0)       # 爆発エフェクトの色
+ORANGE = (255, 165, 0)  # 爆発エフェクトの色
+
+# ========================================
+# 個人実装: ボムコピー能力システム (C0C24001)
+# カービィが敵を吸い込んでコピーする能力として実装
+# ========================================
+C0C24001_BOMB_FUSE_TIME = 3.0  # 爆弾の導火線の時間(秒)
+C0C24001_BOMB_EXPLOSION_DURATION = 0.5  # 爆発エフェクトの表示時間(秒)
+C0C24001_BOMB_EXPLOSION_RADIUS = TILE_SIZE_X * 3  # 爆発範囲の半径
+
 
 #さあ解消を始めよう
 # enemy_image = pygame.image.load("fig/syujinkou_yoko.png")
@@ -777,6 +928,214 @@ class kirby_fire(Player):
             pg.draw.rect(screen, (50, 200, 50), self.rect)
 # ==== 追加ここまで ====
 
+# 3.5 ボムコピー能力システムの定義
+# ========================================
+# 個人実装機能: ボムコピー能力 (C0C24001)
+# カービィが敵を吸い込んでコピーする能力として実装
+# ========================================
+
+class C0C24001_BombAbility(Player):
+    """ボムコピー能力クラス (C0C24001実装)
+    
+    カービィが爆弾を持つ敵を吸い込んだ後に使えるようになる能力
+    
+    使い方:
+    1. 他のメンバーの吸い込みシステムから activate() を呼ぶ
+    2. プレイヤーがBキーを押したら use_ability() を呼ぶ
+    3. 返り値の爆弾オブジェクトを bombs リストに追加
+    """
+    def __init__(self, instance):
+        super().__init__()
+        # raise ValueError
+        self.name = "bomb"  # ボム能力を持っているか
+        self.bomb_img = pg.image.load("img/bom2.png").convert_alpha()
+        self.flip_bomb_img = pg.transform.flip(self.bomb_img, True, False)
+        self.rect = instance.rect
+        # self.vx = PLAYER_SPEED
+        self.is_on_ground = False     # 地面（ブロック）に接地しているか
+        self.move_left = False # 左に移動中か
+        self.move_right = False# 右に移動中か
+        self.facing_right = True # プレイヤーの向き（True=右向き, False=左向き）
+
+
+        
+    def activate(self):
+        """ボム能力を取得(敵を吸い込んだ時に呼ばれる)"""
+        self.has_ability = True
+        print("【ボム能力を取得!】")
+        
+    def deactivate(self):
+        """ボム能力を失う"""
+        self.has_ability = False
+        print("【ボム能力を失った】")
+        
+    def use_ability(self, player_pos, player_facing_right, ability_type="place", camera_x = 0):
+        """ボム能力を使用
+        
+        Args:
+            player_pos: プレイヤーの位置 (rect)
+            player_facing_right: プレイヤーの向き
+            ability_type: "place"(設置), "throw"(投擲), "kick"(キック)
+            
+        Returns:
+            爆弾オブジェクト または None
+        """
+        if not self.has_ability:
+            return None
+            
+        # 爆弾を生成して返す
+        if ability_type == "place":
+            print(self.rect.centerx, self.rect.centery)
+            bomb_x = self.rect.centerx - camera_x
+            bomb_y = self.rect.centery
+            return C0C24001_BombProjectile(bomb_x, bomb_y, velocity_x=0, velocity_y=1)
+        elif ability_type == "throw":
+            bomb_x = self.rect.centerx - camera_x
+            bomb_y = self.rect.centery
+            throw_speed_x = 10 if player_facing_right else -10
+            throw_speed_y = -8
+            return C0C24001_BombProjectile(bomb_x, bomb_y, velocity_x=throw_speed_x, velocity_y=throw_speed_y)
+        
+        return None
+
+class C0C24001_BombProjectile(pg.sprite.Sprite):
+    """爆弾プロジェクタイルクラス (C0C24001実装)
+    
+    ボム能力で生成される爆弾オブジェクト
+    
+    実装機能:
+    - 物理演算(重力、跳ね返り、摩擦)
+    - 爆発タイマーとエフェクト
+    - GIFアニメーション表示
+    """
+    def __init__(self,instance, velocity_x=0, velocity_y=0):
+        super().__init__()
+        self.img = pg.image.load("img/bom3.png").convert_alpha()
+        self.img = pg.transform.rotozoom(self.img, 0, 0.1)  # 0.5から0.3に縮小
+        # self.rect = pg.Rect(x, y, TILE_SIZE_X, TILE_SIZE_Y)
+        self.rect = self.img.get_rect()
+        self.rect.center = (instance.rect.centerx, instance.rect.centery)
+        self.placed_time = time.time()  # 設置時刻
+        self.is_exploded = False  # 爆発したか
+        self.explosion_time = None  # 爆発時刻
+        self.velocity_x = velocity_x  # X方向の速度
+        self.velocity_y = velocity_y  # Y方向の速度
+        self.on_ground = False  # 地面に接地しているか
+        
+        
+    def update(self, block_rects):
+        """爆弾の状態を更新"""
+        current_time = time.time()
+        
+        # まだ爆発していない場合、時間経過をチェック
+        if not self.is_exploded:
+            if current_time - self.placed_time >= C0C24001_BOMB_FUSE_TIME:
+                self.is_exploded = True
+                self.explosion_time = current_time
+                return True  # 爆発した
+            
+            # 重力を常に適用（地面にいない限り）
+            if not self.on_ground:
+                self.velocity_y += GRAVITY * 0.5  # 爆弾用の重力（少し弱め）
+            #frag_bomb
+            # X方向の移動
+            if self.velocity_x != 0:
+                self.rect.x += self.velocity_x
+                
+                # X方向の衝突チェック（壁で跳ね返る）
+                for block in block_rects:
+                    if self.rect.colliderect(block):
+                        if self.velocity_x > 0:  # 右に移動中
+                            self.rect.right = block.left
+                            self.velocity_x = -self.velocity_x * 0.5  # 跳ね返る（減衰）
+                        elif self.velocity_x < 0:  # 左に移動中
+                            self.rect.left = block.right
+                            self.velocity_x = -self.velocity_x * 0.5
+                
+                # 画面端チェックは削除（ワールド座標なので不要）
+                # 爆弾がステージ外に出た場合は自然に落下して消える
+            
+            # Y方向の移動
+            self.rect.y += self.velocity_y
+            
+            # Y方向の衝突チェック
+            self.on_ground = False
+            for block in block_rects:
+                if self.rect.colliderect(block):
+                    # raise ValueError
+                    if self.velocity_y > 0:  # 落下中
+                        self.rect.bottom = block.top
+                        self.velocity_y = -self.velocity_y * 0.3  # 少し跳ねる
+                        self.on_ground = True
+                        # 摩擦で減速
+                        self.velocity_x *= 0.9
+                        if abs(self.velocity_x) < 0.5:
+                            self.velocity_x = 0
+                        # 跳ね返りが小さい場合は停止
+                        if abs(self.velocity_y * 0.3) < 1:
+                            self.velocity_y = 0
+                    elif self.velocity_y < 0:  # 上昇中
+                        self.rect.top = block.bottom
+                        self.velocity_y = 0
+            
+            # 画面下端チェック
+            if self.rect.bottom > SCREEN_HEIGHT:
+                self.rect.bottom = SCREEN_HEIGHT
+                self.velocity_y = 0
+                self.on_ground = True
+                self.velocity_x *= 0.9
+                if abs(self.velocity_x) < 0.5:
+                    self.velocity_x = 0
+                    
+        return False
+    
+    def is_explosion_finished(self):
+        """爆発エフェクトが終了したか"""
+        if self.is_exploded and self.explosion_time:
+            return time.time() - self.explosion_time >= C0C24001_BOMB_EXPLOSION_DURATION
+        return False
+    
+    def draw(self, surface, bomb_image, explosion_frames, camera_x):
+        """爆弾または爆発エフェクトを描画"""
+        if self.is_exploded:
+            # 爆発エフェクトを描画
+            if explosion_frames and len(explosion_frames) > 0:
+                # アニメーションフレームを表示
+                elapsed_time = time.time() - self.explosion_time
+                # フレームレート: 0.05秒ごとに切り替え(20fps)
+                frame_index = int(elapsed_time / 0.05) % len(explosion_frames)
+                current_frame = explosion_frames[frame_index]
+                
+                # カメラオフセットを考慮して描画
+                explosion_center_x = self.rect.centerx - camera_x
+                explosion_center_y = self.rect.centery
+                explosion_rect = current_frame.get_rect(center=(explosion_center_x, explosion_center_y))
+                surface.blit(current_frame, explosion_rect.topleft)
+            else:
+                # 画像がない場合は円で表現（カメラオフセット考慮）
+                explosion_center = (self.rect.centerx - camera_x, self.rect.centery)
+                # 外側の円(赤)
+                pg.draw.circle(surface, RED, explosion_center, C0C24001_BOMB_EXPLOSION_RADIUS, 0)
+                # 中間の円(オレンジ)
+                pg.draw.circle(surface, ORANGE, explosion_center, C0C24001_BOMB_EXPLOSION_RADIUS * 2 // 3, 0)
+                # 内側の円(黄色)
+                pg.draw.circle(surface, (255, 255, 0), explosion_center, C0C24001_BOMB_EXPLOSION_RADIUS // 3, 0)
+        # else:
+            # 爆弾画像を描画（カメラオフセット考慮）
+            # surface.blit(bomb_image, (self.rect.x - camera_x, self.rect.y))
+    
+    def get_explosion_rect(self):
+        """爆発範囲の矩形を返す"""
+        if self.is_exploded:
+            center = self.rect.center
+            explosion_rect = pg.Rect(
+                center[0] - C0C24001_BOMB_EXPLOSION_RADIUS,
+                center[1] - C0C24001_BOMB_EXPLOSION_RADIUS,
+                C0C24001_BOMB_EXPLOSION_RADIUS * 2,
+                C0C24001_BOMB_EXPLOSION_RADIUS * 2
+            )
+            return explosion_rect
+        return None
 #---修正
 class Enemy(pg.sprite.Sprite):
     """
@@ -991,6 +1350,7 @@ def main():
     fireballs = pg.sprite.Group()
     clashes = pg.sprite.Group()
     breathes = pg.sprite.Group()
+    bombs = pg.sprite.Group()
 
     player = Player() 
     for i in range(ENEMY_NUM):
@@ -1084,7 +1444,45 @@ def main():
                     absurbs.add(Absurb(player))
                 if player.name == "fire":
                     player.handle_input(event, player.move_left, player.move_right, fireballs, breathes, clashes)
-
+                # ========================================
+                # 個人実装: 爆弾操作 (C0C24001)
+                # ========================================
+                if event.key == pg.K_b:
+                    # 爆弾能力を持っている場合のみ使用可能
+                    if player.name == "bomb":
+                        # Shiftキーが押されている場合は投擲、それ以外は設置
+                        keys = pg.key.get_pressed()
+                        if keys[pg.K_LSHIFT] or keys[pg.K_RSHIFT]:
+                            # 爆弾を投擲（前方に投げる)
+                            bomb_x = player.rect.centerx  # camera_xを引かない（ワールド座標）
+                            bomb_y = player.rect.centery
+                            # プレイヤーの向きに応じて速度を設定
+                            throw_speed_x = 10 if player.facing_right else -10
+                            throw_speed_y = -8  # 上向きに投げる
+                            new_bomb = C0C24001_BombProjectile(player, velocity_x=throw_speed_x, velocity_y=throw_speed_y)
+                            bombs.add(new_bomb)
+                        else:
+                            # 爆弾を設置（プレイヤーの足元に設置し、重力で落下）
+                            bomb_x = player.rect.centerx  # camera_xを引かない（ワールド座標）
+                            bomb_y = player.rect.centery
+                            print(player.rect.centerx, player.rect.centery)
+                            # 設置時に初期速度を設定（重力で落下させる）
+                            new_bomb = C0C24001_BombProjectile(player, velocity_x=0, velocity_y=1)
+                            bombs.add(new_bomb)
+                
+                if event.key == pg.K_k:
+                    # 近くの爆弾をキック
+                    for bomb in bombs:
+                        if not bomb.is_exploded and abs(bomb.velocity_x) < 1:  # 静止している爆弾のみ
+                            # プレイヤーとの距離をチェック
+                            distance = ((player.rect.centerx - bomb.rect.centerx) ** 2 + 
+                                       (player.rect.centery - bomb.rect.centery) ** 2) ** 0.5
+                            if distance < TILE_SIZE_X * 2:  # 2タイル以内
+                                # プレイヤーの向きに応じて蹴る
+                                kick_speed = 8 if player.facing_right else -10
+                                bomb.velocity_x = kick_speed
+                                bomb.velocity_y = -3  # 少し浮かせる
+                                break  # 1つだけキック
 
             # キーが離された時
             if event.type == pg.KEYUP:
@@ -1120,7 +1518,7 @@ def main():
                 enemy.rect.centery += 10
                 if enemy.size <= 0:
                     enemy.kill()
-                    player = kirby_fire(player)
+                    player = C0C24001_BombAbility(player)
 
 
 
@@ -1148,6 +1546,8 @@ def main():
             camera_x = player.update(len(map_data[0]), all_blocks, floar_blocks, camera_x)
         elif player.name == "fire":
             camera_x = player.update(len(map_data[0]), all_blocks, floar_blocks, camera_x)
+        elif player.name == "bomb":
+            camera_x = player.update(len(map_data[0]), all_blocks, floar_blocks, camera_x)
         # for i in player_lead_attacks:
         #     i.update(player)
         #     screen.blit(i.img, (100, 100))#(player.rect.x + 100, player.rect.y))
@@ -1162,6 +1562,11 @@ def main():
         elif player.name == "fire":
             player.draw_and_update(screen, explosions, all_blocks, camera_x, fireballs, breathes, clashes, len(map_data[0]))
 
+        elif player.name == "bomb":
+            player.update(len(map_data[0]), all_blocks, floar_blocks, camera_x)
+            screen.blit(player.bomb_img, (player.rect.x - camera_x, player.rect.y))
+        for bomb in bombs:
+            screen.blit(bomb.img, (bomb.rect.x - camera_x, bomb.rect.y))
         # kirby.draw_and_update(screen)
         hovers.update()
         for hover in hovers:
@@ -1174,6 +1579,22 @@ def main():
             i.update(player)
             screen.blit(i.img, (i.rect.x - camera_x, i.rect.y))
 
+        for bomb in bombs:
+            if bomb.update(all_blocks):  # 爆発した場合（block_rectsを渡す）
+                # 爆発音を再生
+                if explosion_sound:
+                    explosion_sound.play()
+                # 将来的にここで敵やプレイヤーへのダメージ処理を追加
+                pass
+        
+            # 爆発エフェクトが終了したら削除リストに追加
+            if bomb.is_explosion_finished():
+                bomb.kill()
+            else:
+                # 爆弾を描画 (C0C24001) - drawメソッドを使用してGIFアニメーション対応
+                bomb.draw(screen, bomb.img, c0c24001_explosion_frames, camera_x)
+                screen.blit(bomb.img, (bomb.rect.x - camera_x, bomb.rect.y))
+        
 
         for i in bound_balls:
             i.update()
@@ -1211,22 +1632,3 @@ if __name__ == "__main__":
     main()
     pg.quit()
     sys.exit()
-# 3. ステージの「当たり判定用の四角形(Rect)」リストを作成
-# (ゲーム開始時に一度だけ計算する)
-#途中なのか⁈
-
-# グローバル：壁衝突時の小規模爆発エフェクトを格納するリスト
- # かーびーオブジェクトを作成
-
-
-# 5. ゲームループ
-        #これを適切な箇所で呼び出す
-
-
-        
-    # プレイヤーを描画
-
-    
- 
-
-#終わりか⁈
