@@ -36,42 +36,54 @@ class BombEnemy(pg.sprite.Sprite):
         bomb_img = pg.image.load("fig/bakudan.png")
         self.image = pg.transform.rotozoom(bomb_img, 0, 1)
         self.rect = pg.Rect(800, 300, TILE_SIZE, TILE_SIZE)
-        self.image_rect = self.image.get_rect()
-        self.image_rect.center = self.rect.center
+        self.image_rect = self.image.get_rect(center=self.rect.center)
+        self.vx = random.choice([-3, 3])
+        # --- 追加: 垂直速度と接地フラグを初期化（プレイヤーと同様） ---
         self.vy = 0.0
         self.on_ground = False
-        # 次に爆弾を投げるフレーム
         self.next_throw = random.randint(60, 120)
 
     def update(self, blocks):
-        """
-        重力処理とブロックとの衝突判定
-        """
-        # 重力加算（接地していなければ落下）
-        if not self.on_ground:
-            self.vy += GRAVITY
-            self.rect.y += int(self.vy)
-            self.image_rect.center = self.rect.center
+        # 横移動
+        self.rect.x += int(self.vx)
+        self.image_rect.center = self.rect.center
 
-        # 地面との当たり判定（落下時のみ処理）
+        # ブロックとの横衝突（反転）
+        for block in blocks:
+            if self.rect.colliderect(block):
+                if self.vx > 0:
+                    self.rect.right = block.left
+                else:
+                    self.rect.left = block.right
+                self.vx = -self.vx
+                self.image_rect.center = self.rect.center
+                break
+
+        # Y方向：重力を加算して移動
+        self.vy += GRAVITY
+        self.rect.y += int(self.vy)
+
+        # Y方向の衝突チェック
         self.on_ground = False
         for block in blocks:
             if self.rect.colliderect(block):
-                if self.vy > 0:
+                if self.vy > 0:  # 落下中に衝突
                     self.rect.bottom = block.top
-                    self.vy = 0.0
+                    self.vy = 0
                     self.on_ground = True
                     self.image_rect.center = self.rect.center
+                elif self.vy < 0:  # 上昇中に衝突
+                    self.rect.top = block.bottom
+                    self.vy = 0
+                    self.image_rect.center = self.rect.center
+                break
 
     def draw(self, screen):
-        """
-        爆弾の敵を描画
-        """
         screen.blit(self.image, self.image_rect)
 
     def get_throw_velocity(self) -> tuple[float, float]:
         """
-        プレイヤー方向への投擲初速ベクトルを返す
+        プレイヤー方向への投擲初速ベクトルを返す（既存仕様維持）
         """
         dx = player_rect.centerx - self.rect.centerx
         dy = player_rect.centery - self.rect.centery
@@ -115,9 +127,6 @@ class Bomb(pg.sprite.Sprite):
         self.boom_life = 0  # 爆発表示残フレーム数
 
     def update(self, blocks):
-        """
-        爆弾の移動と位置更新。
-        """
         if self.exploded:
             # 爆発中はカウントダウンして寿命が尽きたら削除
             self.boom_life -= 1
@@ -164,7 +173,6 @@ class SlotEnemy(pg.sprite.Sprite):
         super().__init__()
         slot_img = pg.image.load("fig/slot.png")
         self.image = pg.transform.rotozoom(slot_img, 0, 1)
-        # デフォルト初期位置（BombEnemy と同じ書き方）
         self.rect = pg.Rect(800, 150, TILE_SIZE, TILE_SIZE)
         self.image_rect = self.image.get_rect()
         self.image_rect.center = self.rect.center
@@ -174,24 +182,40 @@ class SlotEnemy(pg.sprite.Sprite):
             self.rect.centery = int(y)
             self.image_rect.center = self.rect.center
 
-        # 速度（デフォルトは静止）
+        # 移動速度を遅めに設定
+        self.speed = 1.5  # プレイヤーの移動速度(5)より遅く
         self.vx = 0.0
         self.vy = 0.0
 
-        # 発射関連（フレームカウント基準）
         self.next_shot = random.randint(60, 180)
         self.weapon_speed = 8.0
 
-    def set_position(self, x: int, y: int):
-        self.rect.centerx = int(x)
-        self.rect.centery = int(y)
+    def update(self, blocks=None):
+        # プレイヤーの方向を計算
+        dx = player_rect.centerx - self.rect.centerx
+        dy = 0  # Y方向は移動しない
+
+        # 方向の正規化（単位ベクトル化）
+        dist = abs(dx)
+        if dist != 0:
+            # X方向の速度を設定（正規化して speed を掛ける）
+            self.vx = (dx / dist) * self.speed
+
+        # 横移動
+        self.rect.x += int(self.vx)
         self.image_rect.center = self.rect.center
 
-    def update(self, blocks=None):
-        if self.vx != 0.0 or self.vy != 0.0:
-            self.rect.x += int(self.vx)
-            self.rect.y += int(self.vy)
-            self.image_rect.center = self.rect.center
+        # ブロックとの横衝突で反転
+        if blocks:
+            for block in blocks:
+                if self.rect.colliderect(block):
+                    if self.vx > 0:
+                        self.rect.right = block.left
+                    else:
+                        self.rect.left = block.right
+                    self.vx = -self.vx
+                    self.image_rect.center = self.rect.center
+                    break
 
     def draw(self, screen):
         screen.blit(self.image, self.image_rect)
@@ -204,35 +228,51 @@ class FireEnemy(pg.sprite.Sprite):
     def __init__(self):
         super().__init__()
         fire_img = pg.image.load("fig/fire_enemy.png")
-        fire_img = pg.transform.flip(fire_img, True, False)  # 水平方向に反転
+        fire_img = pg.transform.flip(fire_img, True, False)
         self.image = pg.transform.rotozoom(fire_img, 0, 1)
         self.rect = pg.Rect(700, 300, TILE_SIZE, TILE_SIZE)
-        self.image_rect = self.image.get_rect()
-        self.image_rect.center = self.rect.center
-        # 物理量（BombEnemy と同様）
+        self.image_rect = self.image.get_rect(center=self.rect.center)
+        self.vx = random.choice([-2, 2])
+        # --- 追加: 垂直速度と接地フラグを初期化 ---
         self.vy = 0.0
         self.on_ground = False
-
-        # 発射関連（SlotEnemyと同様）
-        self.next_shot = random.randint(60, 180)  # 次の発射時刻
-        self.weapon_speed = 6.0  # 弾の速度
+        self.next_shot = random.randint(60, 180)
+        self.weapon_speed = 6.0
 
     def update(self, blocks):
-        # 重力加算（接地していなければ落下）
-        if not self.on_ground:
-            self.vy += GRAVITY
-            self.rect.y += int(self.vy)
-            self.image_rect.center = self.rect.center
+        # 横移動
+        self.rect.x += int(self.vx)
+        self.image_rect.center = self.rect.center
 
-        # 地面との当たり判定（落下時のみ処理）
+        # ブロックとの横衝突（反転）
+        for block in blocks:
+            if self.rect.colliderect(block):
+                if self.vx > 0:
+                    self.rect.right = block.left
+                else:
+                    self.rect.left = block.right
+                self.vx = -self.vx
+                self.image_rect.center = self.rect.center
+                break
+
+        # Y方向：重力を加算して移動
+        self.vy += GRAVITY
+        self.rect.y += int(self.vy)
+
+        # Y方向の衝突チェック（プレイヤーと同じロジック）
         self.on_ground = False
         for block in blocks:
             if self.rect.colliderect(block):
                 if self.vy > 0:
                     self.rect.bottom = block.top
-                    self.vy = 0.0
+                    self.vy = 0
                     self.on_ground = True
                     self.image_rect.center = self.rect.center
+                elif self.vy < 0:
+                    self.rect.top = block.bottom
+                    self.vy = 0
+                    self.image_rect.center = self.rect.center
+                break
 
     def draw(self, screen):
         screen.blit(self.image, self.image_rect)
@@ -290,8 +330,8 @@ map_data = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
@@ -482,7 +522,11 @@ while running:
         if w.rect.right < 0 or w.rect.left > SCREEN_WIDTH or w.rect.bottom < 0 or w.rect.top > SCREEN_HEIGHT:
             slot_weapons.remove(w)
     
-    # SlotEnemy を描画（爆弾の上に表示したいので爆弾描画の後に描画する）
+    # SlotEnemy の更新
+    for s in slot_enemies:
+        s.update(block_rects)
+
+    # SlotEnemy を描画
     for s in slot_enemies:
         s.draw(screen)
 
